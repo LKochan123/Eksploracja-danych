@@ -22,13 +22,17 @@ import java.util.stream.IntStream;
 
 
 public class LRegression {
+
+    private static final String FILE = "xy-010";
     public static void main(String[] args) {
         SparkSession spark = createSparkSession();
-        Dataset<Row> data = loadFile(spark, "data/xy-001.csv");
+        Dataset<Row> data = loadFile(spark, "data/" + FILE + ".csv");
         Dataset<Row> dfTransformed = configVector().transform(data);
 
         LinearRegression lr = createLinearRegressionModel(10, 0.3, 0.8);
         LinearRegressionModel lrModel = lr.fit(dfTransformed);
+//        printCoefficientsAndIntercept(lrModel);
+        trainingSummary(lrModel.summary());
 
 //        List<Double> valuesList = convertArrayDoubleToList(lrModel.summary().objectiveHistory());
 //        plotObjectiveHistory(valuesList);
@@ -36,12 +40,6 @@ public class LRegression {
         List<Double> x = dfTransformed.select("X").as(Encoders.DOUBLE()).collectAsList();
         List<Double> y = dfTransformed.select("Y").as(Encoders.DOUBLE()).collectAsList();
         plot(x, y, lrModel, "Linear regression", null);
-        
-//        System.out.println("Excerpt of the dataframe content:");
-//        dfTransformed.show(5);
-//
-//        System.out.println("Dataframe's schema:");
-//        dfTransformed.printSchema();
     }
 
     private static SparkSession createSparkSession() {
@@ -59,6 +57,11 @@ public class LRegression {
             .load(path);
     }
 
+//    You need to change this function to each file (according to the instructions)
+    private static double realFunction(double x) {
+        return (x + 4) * (x + 1) * (x - 3);
+    }
+
     private static VectorAssembler configVector() {
         return new VectorAssembler()
             .setInputCols(new String[]{"X"})
@@ -72,6 +75,11 @@ public class LRegression {
             .setElasticNetParam(elasticNet)
             .setFeaturesCol("features")
             .setLabelCol("Y");
+    }
+
+    private static void printCoefficientsAndIntercept(LinearRegressionModel lrModel) {
+        System.out.println("Coefficients: " + lrModel.coefficients());
+        System.out.println("Intercept: " + lrModel.intercept());
     }
 
     private static void trainingSummary(LinearRegressionTrainingSummary trainingSummary) {
