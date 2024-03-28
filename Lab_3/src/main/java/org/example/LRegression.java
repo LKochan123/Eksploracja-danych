@@ -24,6 +24,7 @@ import java.util.stream.IntStream;
 public class LRegression {
 
     private static final String FILE = "xy-010";
+
     public static void main(String[] args) {
         SparkSession spark = createSparkSession();
         Dataset<Row> data = loadFile(spark, "data/" + FILE + ".csv");
@@ -43,38 +44,24 @@ public class LRegression {
     }
 
     private static SparkSession createSparkSession() {
-        return SparkSession.builder()
-            .appName("VectorAssembler Example")
-            .master("local")
-            .getOrCreate();
+        return SparkSession.builder().appName("VectorAssembler Example").master("local").getOrCreate();
     }
 
     private static Dataset<Row> loadFile(SparkSession spark, String path) {
-        return spark.read()
-            .format("csv")
-            .option("header", "true")
-            .option("inferSchema", "true")
-            .load(path);
+        return spark.read().format("csv").option("header", "true").option("inferSchema", "true").load(path);
     }
 
-//    You need to change this function to each file (according to the instructions)
+    //    You need to change this function to each file (according to the instructions)
     private static double realFunction(double x) {
         return (x + 4) * (x + 1) * (x - 3);
     }
 
     private static VectorAssembler configVector() {
-        return new VectorAssembler()
-            .setInputCols(new String[]{"X"})
-            .setOutputCol("features");
+        return new VectorAssembler().setInputCols(new String[] {"X"}).setOutputCol("features");
     }
 
     private static LinearRegression createLinearRegressionModel(int iteration, double reg, double elasticNet) {
-        return new LinearRegression()
-            .setMaxIter(iteration)
-            .setRegParam(reg)
-            .setElasticNetParam(elasticNet)
-            .setFeaturesCol("features")
-            .setLabelCol("Y");
+        return new LinearRegression().setMaxIter(iteration).setRegParam(reg).setElasticNetParam(elasticNet).setFeaturesCol("features").setLabelCol("Y");
     }
 
     private static void printCoefficientsAndIntercept(LinearRegressionModel lrModel) {
@@ -92,7 +79,7 @@ public class LRegression {
         System.out.println("r2: " + trainingSummary.r2());
     }
 
-    private static void plotObjectiveHistory(List<Double> lossHistory){
+    private static void plotObjectiveHistory(List<Double> lossHistory) {
         List<Double> x = IntStream.range(0, lossHistory.size()).mapToDouble(d -> d).boxed().toList();
         Plot plt = Plot.create();
         plt.plot().add(x, lossHistory).label("loss");
@@ -112,8 +99,7 @@ public class LRegression {
         return Arrays.stream(values).boxed().collect(Collectors.toList());
     }
 
-    private static void plot(List<Double> x, List<Double> y, LinearRegressionModel lrModel,
-                             String title, Function<Double, Double> fTrue) {
+    private static void plot(List<Double> x, List<Double> y, LinearRegressionModel lrModel, String title, Function<Double, Double> fTrue) {
 
         Plot plt = Plot.create();
         plt.plot().add(x, y, "o").label("data");
@@ -144,8 +130,6 @@ public class LRegression {
     }
 
     private static List<Double> predictions(List<Double> fx, LinearRegressionModel lrModel) {
-        return fx.stream()
-            .map(xi -> lrModel.predict(Vectors.dense(xi)))
-            .collect(Collectors.toList());
+        return fx.stream().map(xi -> lrModel.predict(Vectors.dense(xi))).collect(Collectors.toList());
     }
 }

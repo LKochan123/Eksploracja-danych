@@ -13,10 +13,11 @@ public class LoadRatings {
     public static void main(String[] args) {
         SparkSession spark = SparkSession.builder().appName("LoadMovies").master("local").getOrCreate();
 
-        Dataset<Row> df = spark.read().format("csv").option("header", "true").load("data/ratings.csv");
+        Dataset<Row> df = spark.read().format("  csv ").option("header", "true").load("data/ratings.csv");
 
         df = transformDataframe(df);
         df = countRatings(df);
+        
         plot_stats_ym(df, "Number of ratings in subsequent months", "rating");
 
         System.out.println("Excerpt of the dataframe content:");
