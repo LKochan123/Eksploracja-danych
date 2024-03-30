@@ -6,24 +6,21 @@ import com.github.sh0nk.matplotlib4j.PythonExecutionException;
 import org.apache.spark.ml.Pipeline;
 import org.apache.spark.ml.PipelineModel;
 import org.apache.spark.ml.PipelineStage;
+import org.apache.spark.ml.evaluation.RegressionEvaluator;
 import org.apache.spark.ml.feature.PolynomialExpansion;
 import org.apache.spark.ml.feature.VectorAssembler;
 import org.apache.spark.ml.linalg.Vectors;
 import org.apache.spark.ml.regression.LinearRegression;
 import org.apache.spark.ml.regression.LinearRegressionModel;
 import org.apache.spark.ml.regression.LinearRegressionTrainingSummary;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.types.StructType;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.apache.spark.sql.functions.col;
 
 
 public class LinearRegressionPolynomialFeaturesOrderTwo {
@@ -32,19 +29,15 @@ public class LinearRegressionPolynomialFeaturesOrderTwo {
     private static final String XY_003 = "xy-003";
     private static final String XY_004 = "xy-004";
     private static final String XY_005 = "xy-005";
+    private static final int degree = 2;
 
     public static void main(String[] args) {
         SparkSession spark = createSparkSession();
 
-//        Dataset<Row> df = processDf(spark, XY_002);
-//
-//        System.out.println("Proccessed dataset: " + XY_002);
-//        df.show(5);
-
-        processDataset(spark, XY_002, LinearRegressionPolynomialFeaturesOrderTwo::realFunction_002);
-        processDataset(spark, XY_003, LinearRegressionPolynomialFeaturesOrderTwo::realFunction_002);
-        processDataset(spark, XY_004, LinearRegressionPolynomialFeaturesOrderTwo::realFunction_004);
-        processDataset(spark, XY_005, LinearRegressionPolynomialFeaturesOrderTwo::realFunction_005);
+//        processDataset(spark, XY_002, degree, LinearRegressionPolynomialFeaturesOrderTwo::realFunction_002);
+//        processDataset(spark, XY_003, degree, LinearRegressionPolynomialFeaturesOrderTwo::realFunction_002);
+//        processDataset(spark, XY_004, degree, LinearRegressionPolynomialFeaturesOrderTwo::realFunction_004);
+        processDataset(spark, XY_005, degree, LinearRegressionPolynomialFeaturesOrderTwo::realFunction_005);
     }
 
     private static double realFunction_002(double x) {
@@ -72,11 +65,6 @@ public class LinearRegressionPolynomialFeaturesOrderTwo {
             .option("header", "true")
             .option("inferSchema", "true")
             .load(path);
-    }
-
-    private static Dataset<Row> addPolynomialColumns(Dataset<Row> data) {
-        data = data.withColumn("X2", col("X").multiply(col("X")));
-        return data;
     }
 
     private static VectorAssembler configVector() {
@@ -121,11 +109,7 @@ public class LinearRegressionPolynomialFeaturesOrderTwo {
         System.out.println("r2: " + trainingSummary.r2());
     }
 
-    private static List<Double> convertArrayDoubleToList(double[] values) {
-        return Arrays.stream(values).boxed().collect(Collectors.toList());
-    }
-
-    private static void plot(List<Double> x, List<Double> y, LinearRegressionModel lrModel, String title, Function<Double, Double> fTrue) {
+    private static void plot(SparkSession spark, List<Double> x, List<Double> y, PipelineModel pipelineModel, String title, Function<Double, Double> fTrue) {
 
         Plot plt = Plot.create();
         plt.plot().add(x, y, "o").label("data");
@@ -138,7 +122,13 @@ public class LinearRegressionPolynomialFeaturesOrderTwo {
         double xdelta = 0.05 * (xmax - xmin);
 
         List<Double> fx = NumpyUtils.linspace(xmin - xdelta, xmax + xdelta, 100);
-        List<Double> predictions = predictions(fx, lrModel);
+        List<Row> rows = predictions(fx);
+
+        StructType schema = new StructType().add("X", "double");
+        Dataset<Row> df_test = spark.createDataFrame(rows, schema);
+        Dataset<Row> df_pred = pipelineModel.transform(df_test);
+
+        List<Double> predictions = df_pred.select("prediction").as(Encoders.DOUBLE()).collectAsList();
         plt.plot().add(fx, predictions).label("Regression line");
 
         if (fTrue != null) {
@@ -155,27 +145,62 @@ public class LinearRegressionPolynomialFeaturesOrderTwo {
         }
     }
 
-    private static List<Double> predictions(List<Double> fx, LinearRegressionModel lrModel) {
-        return fx.stream().map(xi -> lrModel.predict(Vectors.dense(xi, Math.pow(xi, 2)))).collect(Collectors.toList());
+    private static List<Row> predictions(List<Double> fx) {
+        return fx.stream().map(RowFactory::create).collect(Collectors.toList());
     }
 
-    private static Dataset<Row> processDf(SparkSession spark, String file) {
-        Dataset<Row> data = loadFile(spark, "data/" + file + ".csv");
-        Dataset<Row> dataX2 = addPolynomialColumns(data);
-        return configVector().transform(dataX2);
+    private static List<Dataset<Row>> trainTestSplit(Dataset<Row> df) {
+        long rowsCount = df.count();
+        int trainCount = (int) (rowsCount * 0.7);
+
+        Dataset<Row> df_train = df.select("*").limit(trainCount);
+        Dataset<Row> df_test = df.select("*").offset(trainCount);
+
+        return Arrays.asList(df_train, df_test);
     }
 
-    private static void processDataset(SparkSession spark, String file, Function<Double,Double> f_true) {
-        Dataset<Row> df = processDf(spark, file);
+    private static List<Dataset<Row>> randomTrainTestSplit(Dataset<Row> df) {
+        df = df.orderBy(org.apache.spark.sql.functions.rand(3));
+        Dataset<Row>[] dfs = df.randomSplit(new double[] {0.7, 0.3});
+        Dataset<Row> df_train = dfs[0];
+        Dataset<Row> df_test = dfs[1];
+        return Arrays.asList(df_train, df_test);
+    }
 
-        LinearRegression lr = createLinearRegressionModel(10, 0.3, 0.8);
-        LinearRegressionModel lrModel = lr.fit(df);
+    private static void pipelineModelMetrics(PipelineModel model, Dataset<Row> df_test) {
+        Dataset<Row> df_test_prediction = model.transform(df_test);
+        RegressionEvaluator evaluator = new RegressionEvaluator()
+                .setLabelCol("Y")
+                .setPredictionCol("prediction")
+                .setMetricName("rmse");
 
-//        printCoefficientsAndIntercept(lrModel);
-        trainingSummary(lrModel.summary());
+        double rmse = evaluator.evaluate(df_test_prediction);
+        evaluator.setMetricName("r2");
+        double r2 = evaluator.evaluate(df_test_prediction);
 
-        List<Double> x = df.select("X").as(Encoders.DOUBLE()).collectAsList();
-        List<Double> y = df.select("Y").as(Encoders.DOUBLE()).collectAsList();
-        plot(x, y, lrModel, "Linear regression: " + file, f_true);
+        System.out.println("Rmse: " + rmse);
+        System.out.println("R2: " + r2);
+    }
+
+
+    private static void processDataset(SparkSession spark, String filename, int degree, Function<Double,Double> f_true) {
+        Dataset<Row> df = loadFile(spark, "data/" + filename + ".csv");
+
+        VectorAssembler vectorAssembler = configVector();
+        PolynomialExpansion polynomialExpansion = configPolynomial(degree);
+        LinearRegression lr = createLinearRegressionModel(10, 0.3, 0.8)
+                .setFeaturesCol("polyFeatures");
+
+
+        List<Dataset<Row>> arr = randomTrainTestSplit(df);
+        Dataset<Row> df_train = arr.get(0);
+        Dataset<Row> df_test = arr.get(1);
+
+        PipelineModel pipelineModel = createPipeline(vectorAssembler, polynomialExpansion, lr, df_train);
+        pipelineModelMetrics(pipelineModel, df_test);
+
+        List<Double> x = df_test.select("X").as(Encoders.DOUBLE()).collectAsList();
+        List<Double> y = df_test.select("Y").as(Encoders.DOUBLE()).collectAsList();
+        plot(spark, x, y, pipelineModel, "Linear regression: " + filename, f_true);
     }
 }
