@@ -3,6 +3,8 @@ package org.example;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 
 import java.io.Serializable;
@@ -17,15 +19,24 @@ public class PiComputeApp implements Serializable {
         int n = 1_000_000 * slices;
 
         System.out.printf("Table of %d elements will be divided into %d partitions.\n" +
-                "Each partition will be processed as separate task\n",n,slices);
+                "Each partition will be processed as separate task\n", n, slices);
 
         long t0 = System.currentTimeMillis();
 
-        SparkSession spark = SparkSession
-                .builder()
-                .appName("Spark Pi")
-                .master("local[*]")
-                .getOrCreate();
+        SparkSession spark = SparkSession.builder()
+            .appName("LoadDatasetDistributed")
+            .master("spark://172.22.0.2:7077")
+            .getOrCreate();
+
+        Dataset<Row> df = spark.read().format("csv")
+            .option("header", "true")
+            .option("inferschema","true")
+            .load("data/owid-energy-data.csv.gz");
+
+        df.show(5);
+        df = df.select("country","year", "population", "electricity_demand").where("country like \'Po%\' AND year >= 2000");
+        df.show(5);
+        df.printSchema();
 
         SparkContext sparkContext = spark.sparkContext();
         JavaSparkContext ctx = new JavaSparkContext(sparkContext);
