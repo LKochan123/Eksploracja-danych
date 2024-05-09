@@ -7,3 +7,5 @@ Academic course about Data Mining. Each catalog contains a new projcet classes:
 - Lab 5 - Spark cluster - Docker
 - Lab 6 - Regression - Predicting house sales prices
 - Lab 7 - Regression - bike rentals
+- Lab8 - Logistic regression
+- Lab9 - Classification of text documents
