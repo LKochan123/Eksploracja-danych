@@ -34,7 +34,7 @@ public class AuthorRecognition {
 
         SparseVector fi = getFeatureImportance(model);
 
-//        CountVectorizerModel countVectorizerModel = getCountVectorizerModel(dfTokenized);
+        CountVectorizerModel countVectorizerModel = getCountVectorizerModel(dfTokenized);
 //        showWordsOccurrence(dfBow, countVectorizerModel);
 //        getModelAccuracy(dfPredictions);
 //        showFeaturesImportance(model);
@@ -44,7 +44,7 @@ public class AuthorRecognition {
 //        tokenizeDataframe(df);
 //        showDataframeContent(dfPredictions);
 
-//        showWordImportance(fi, dfPredictions);
+//        showWordImportance(fi, countVectorizerModel);
 //        showWordsAndFeature(dfBow);
 
         // 3. AuthorRecognitionGridSearchCVDecisionTree
@@ -191,8 +191,8 @@ public class AuthorRecognition {
         return (SparseVector) model.featureImportances();
     }
 
-    public static void showWordImportance(SparseVector fi, Dataset<Row> df) {
-        CountVectorizerModel model = getCountVectorizerModel(df);
+    // Something is wrong here
+    public static void showWordImportance(SparseVector fi, CountVectorizerModel model) {
         String[] words = model.vocabulary();
         int[] indices = fi.indices();
         double[] values = fi.values();
