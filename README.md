@@ -12,3 +12,4 @@ Academic course about Data Mining. Each catalog contains new laboratory classes:
 - Lab 10, 11 - Ray platform
 - Lab 12 - Feature extraction from musical pieces, librosa
 - Lab 13 - Classification of musical works
+- Lab 14 - Test :)
